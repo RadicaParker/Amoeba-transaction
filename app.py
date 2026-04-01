@@ -13,6 +13,7 @@ st.set_page_config(page_title="Radica Amoeba Internal Transaction", layout="wide
 
 init_db()
 seed_data()
+
 process_email_action()
 
 if "user" not in st.session_state:
@@ -26,7 +27,12 @@ user = st.session_state.user
 
 st.title("Radica Amoeba Internal Transaction")
 st.caption(
-    "Logged in as: " + user["name"] + " (" + user["role"] + ") | Amoeba: " + user["amoeba"]
+    "Logged in as: "
+    + user["name"]
+    + " ("
+    + user["role"]
+    + ") | Amoeba: "
+    + user["amoeba"]
 )
 
 with st.sidebar:
