@@ -63,10 +63,10 @@ def init_db():
     cur.execute("""
         CREATE TABLE IF NOT EXISTS approval_tokens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT UNIQUE,
             txn_code TEXT,
             approver_email TEXT,
             action TEXT,
-            token TEXT UNIQUE,
             expiry_datetime TEXT,
             used INTEGER DEFAULT 0,
             used_datetime TEXT
@@ -83,19 +83,24 @@ def seed_data():
 
     cur.execute("SELECT COUNT(*) FROM amoebas")
     if cur.fetchone()[0] == 0:
-        for a in ["Sales", "Marketing", "Product", "Finance", "Operations", "Accounting"]:
+        for a in ["Sales", "Marketing", "Product", "Finance", "Operations"]:
             cur.execute("INSERT INTO amoebas (name) VALUES (?)", (a,))
 
     cur.execute("SELECT COUNT(*) FROM categories")
     if cur.fetchone()[0] == 0:
-        for c in ["Internal Recharge", "Shared Cost", "Department Allocation", "Adjustment"]:
+        for c in [
+            "Internal Recharge",
+            "Shared Cost",
+            "Department Allocation",
+            "Adjustment",
+        ]:
             cur.execute("INSERT INTO categories (name) VALUES (?)", (c,))
 
     cur.execute("SELECT COUNT(*) FROM users")
     if cur.fetchone()[0] == 0:
         users = [
             ("radicafinace", "Radica Finance", "radica!23", "admin", "Finance", 1),
-            ("financeradica81@gmail.com", "Parker", "Admin123!", "approver", "Finance", 1),
+            ("manager@radica.com", "Department Manager", "Admin123!", "approver", "Operations", 1),
             ("staff@radica.com", "Staff User", "Admin123!", "submitter", "Marketing", 1),
         ]
         cur.executemany(
