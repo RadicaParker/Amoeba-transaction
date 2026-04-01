@@ -1,4 +1,3 @@
-import io
 import smtplib
 import uuid
 from datetime import datetime, timedelta
@@ -12,10 +11,6 @@ from db import fetch_all, fetch_one, execute, next_txn_code
 
 CURRENCIES = ["HKD", "CNY", "USD"]
 
-
-# ─────────────────────────────────────────────
-# EMAIL HELPERS
-# ─────────────────────────────────────────────
 
 def get_secrets():
     try:
@@ -67,9 +62,12 @@ def send_approval_email(txn_code, submitter_name, submitter_amoeba,
         "<tr><td><b>Description</b></td><td>" + description + "</td></tr>"
         "</table><br>"
         "<p>"
-        "<a href='" + approve_link + "' style='background:#28a745;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;margin-right:10px;'>APPROVE</a>"
+        "<a href='" + approve_link + "' style='background:#28a745;color:white;"
+        "padding:10px 20px;text-decoration:none;border-radius:5px;"
+        "margin-right:10px;'>APPROVE</a>"
         "&nbsp;&nbsp;"
-        "<a href='" + reject_link + "' style='background:#dc3545;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;'>REJECT</a>"
+        "<a href='" + reject_link + "' style='background:#dc3545;color:white;"
+        "padding:10px 20px;text-decoration:none;border-radius:5px;'>REJECT</a>"
         "</p>"
         "<p><small>These links expire in 7 days.</small></p>"
         "</body></html>"
@@ -91,19 +89,13 @@ def send_approval_email(txn_code, submitter_name, submitter_amoeba,
         st.error("Email sending failed: " + str(e))
 
 
-# ─────────────────────────────────────────────
-# EMAIL LINK ACTION HANDLER
-# ─────────────────────────────────────────────
-
 def process_email_action():
     try:
         token = st.query_params.get("token")
     except Exception:
         return
-
     if not token:
         return
-
     if isinstance(token, list):
         token = token[0]
 
@@ -111,7 +103,6 @@ def process_email_action():
         "SELECT txn_code, approver_email, action, expiry_datetime, used FROM approval_tokens WHERE token = ?",
         (token,),
     )
-
     if not token_row:
         st.error("Invalid approval link.")
         st.stop()
@@ -121,7 +112,6 @@ def process_email_action():
     if used == 1:
         st.warning("This approval link has already been used.")
         st.stop()
-
     if datetime.now() > datetime.strptime(expiry_datetime, "%Y-%m-%d %H:%M:%S"):
         st.error("This approval link has expired.")
         st.stop()
@@ -130,7 +120,6 @@ def process_email_action():
     if not txn:
         st.error("Transaction not found.")
         st.stop()
-
     if txn[0] != "Pending Approval":
         st.info("Transaction " + txn_code + " has already been processed.")
         st.stop()
@@ -139,11 +128,11 @@ def process_email_action():
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     execute(
-        "UPDATE transactions SET status = ?, approval_comment = ?, approval_datetime = ? WHERE txn_code = ?",
+        "UPDATE transactions SET status=?, approval_comment=?, approval_datetime=? WHERE txn_code=?",
         (new_status, "Action taken via email link", now_str, txn_code),
     )
     execute(
-        "UPDATE approval_tokens SET used = 1, used_datetime = ? WHERE token = ?",
+        "UPDATE approval_tokens SET used=1, used_datetime=? WHERE token=?",
         (now_str, token),
     )
 
@@ -156,17 +145,13 @@ def process_email_action():
     st.stop()
 
 
-# ─────────────────────────────────────────────
-# SUBMIT TRANSACTION
-# ─────────────────────────────────────────────
-
 def submit_transaction_page(user):
     st.subheader("Submit Transaction")
 
     amoebas = [r[0] for r in fetch_all("SELECT name FROM amoebas ORDER BY name")]
     categories = [r[0] for r in fetch_all("SELECT name FROM categories ORDER BY name")]
     approvers = fetch_all(
-        "SELECT email, name FROM users WHERE role IN ('approver','admin') AND active = 1 ORDER BY name"
+        "SELECT email, name FROM users WHERE role IN ('approver','admin') AND active=1 ORDER BY name"
     )
 
     approver_map = {}
@@ -175,7 +160,7 @@ def submit_transaction_page(user):
             approver_map[name + " (" + email + ")"] = (email, name)
 
     if not approver_map:
-        st.warning("No approvers available. Please ask admin to assign an approver.")
+        st.warning("No approvers available.")
         return
 
     with st.form("txn_form", clear_on_submit=True):
@@ -189,18 +174,15 @@ def submit_transaction_page(user):
             approver_label = st.selectbox("Select Approver", list(approver_map.keys()))
             description = st.text_area("Description / Remarks")
             attachment = st.file_uploader("Attachment (optional)")
-
         submitted = st.form_submit_button("Submit Transaction")
 
     if submitted:
         if amount <= 0:
             st.error("Amount must be greater than zero.")
             return
-
         approver_email, approver_name = approver_map[approver_label]
         attachment_name = attachment.name if attachment else ""
         txn_code = next_txn_code()
-
         execute(
             """INSERT INTO transactions (
                 txn_code, submit_date, submitter_email, submitter_name,
@@ -208,26 +190,12 @@ def submit_transaction_page(user):
                 amount, currency, approver_email, approver_name,
                 attachment_name, status, approval_comment, approval_datetime
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                txn_code,
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                user["email"],
-                user["name"],
-                user["amoeba"],
-                counterparty_amoeba,
-                category,
-                description,
-                amount,
-                currency,
-                approver_email,
-                approver_name,
-                attachment_name,
-                "Pending Approval",
-                "",
-                "",
-            ),
+            (txn_code, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+             user["email"], user["name"], user["amoeba"],
+             counterparty_amoeba, category, description,
+             amount, currency, approver_email, approver_name,
+             attachment_name, "Pending Approval", "", ""),
         )
-
         send_approval_email(
             txn_code, user["name"], user["amoeba"],
             counterparty_amoeba, category, amount, currency,
@@ -235,25 +203,18 @@ def submit_transaction_page(user):
         )
 
 
-# ─────────────────────────────────────────────
-# MY TRANSACTIONS
-# ─────────────────────────────────────────────
-
 def my_transactions_page(user):
     st.subheader("My Transactions")
-
     rows = fetch_all(
         """SELECT txn_code, submit_date, submitter_amoeba, counterparty_amoeba,
                   category, amount, currency, approver_name, status,
                   approval_comment, approval_datetime
-           FROM transactions WHERE submitter_email = ? ORDER BY id DESC""",
+           FROM transactions WHERE submitter_email=? ORDER BY id DESC""",
         (user["email"],),
     )
-
     if not rows:
         st.info("No transactions submitted yet.")
         return
-
     df = pd.DataFrame(rows, columns=[
         "Transaction ID", "Submit Date", "From Amoeba", "To Amoeba",
         "Category", "Amount", "Currency", "Approver", "Status",
@@ -262,30 +223,22 @@ def my_transactions_page(user):
     st.dataframe(df, use_container_width=True)
 
 
-# ─────────────────────────────────────────────
-# APPROVAL QUEUE
-# ─────────────────────────────────────────────
-
 def approval_queue_page(user):
     st.subheader("Approval Queue")
-
     rows = fetch_all(
         """SELECT id, txn_code, submit_date, submitter_name, submitter_amoeba,
                   counterparty_amoeba, category, amount, currency, description
            FROM transactions
-           WHERE approver_email = ? AND status = 'Pending Approval'
+           WHERE approver_email=? AND status='Pending Approval'
            ORDER BY id DESC""",
         (user["email"],),
     )
-
     if not rows:
         st.info("No pending approvals.")
         return
-
     for r in rows:
         txn_id, txn_code, submit_date, submitter_name, from_amoeba, \
             to_amoeba, category, amount, currency, description = r
-
         with st.expander(txn_code + " | " + submitter_name + " | " + str(amount) + " " + currency):
             col1, col2 = st.columns(2)
             with col1:
@@ -295,10 +248,8 @@ def approval_queue_page(user):
             with col2:
                 st.write("**Category:** " + category)
                 st.write("**Description:** " + description)
-
             comment = st.text_input("Comment (optional)", key="comment_" + str(txn_id))
             col_a, col_b = st.columns(2)
-
             with col_a:
                 if st.button("Approve " + txn_code, key="approve_" + str(txn_id)):
                     execute(
@@ -307,7 +258,6 @@ def approval_queue_page(user):
                     )
                     st.success(txn_code + " approved.")
                     st.rerun()
-
             with col_b:
                 if st.button("Reject " + txn_code, key="reject_" + str(txn_id)):
                     execute(
@@ -316,39 +266,3 @@ def approval_queue_page(user):
                     )
                     st.warning(txn_code + " rejected.")
                     st.rerun()
-
-
-# ─────────────────────────────────────────────
-# ADMIN PORTAL
-# ─────────────────────────────────────────────
-
-def admin_portal_page():
-    st.subheader("Admin Portal")
-
-    tab1, tab2, tab3, tab4 = st.tabs(["Users", "Amoebas", "Categories", "Export"])
-
-    # ── USERS ──────────────────────────────────
-    with tab1:
-        st.markdown("### User Management")
-
-        users = fetch_all(
-            "SELECT id, email, name, role, amoeba, active FROM users ORDER BY name"
-        )
-        users_df = pd.DataFrame(
-            users, columns=["ID", "Email", "Name", "Role", "Amoeba", "Active"]
-        )
-        st.dataframe(users_df, use_container_width=True)
-
-        amoebas = [r[0] for r in fetch_all("SELECT name FROM amoebas ORDER BY name")]
-
-        st.markdown("#### Add New User")
-        with st.form("add_user_form"):
-            new_email = st.text_input("Email / Login ID")
-            new_name = st.text_input("Full Name")
-            new_password = st.text_input("Password")
-            new_role = st.selectbox("Role", ["submitter", "approver", "admin"])
-            new_amoeba = st.selectbox("Amoeba", amoebas, key="add_user_amoeba")
-            add_user_btn = st.form_submit_button("Add User")
-
-        if add_user_btn:
-            if not new_email or not new_name or not new
