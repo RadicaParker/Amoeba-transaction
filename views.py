@@ -40,15 +40,11 @@ def send_approval_email(txn_code, submitter_name, submitter_amoeba,
     expiry = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
 
     execute(
-        """INSERT INTO approval_tokens
-           (token, txn_code, approver_email, action, expiry_datetime, used)
-           VALUES (?, ?, ?, ?, ?, 0)""",
+        "INSERT INTO approval_tokens (token, txn_code, approver_email, action, expiry_datetime, used) VALUES (?, ?, ?, ?, ?, 0)",
         (approve_token, txn_code, approver_email, "approve", expiry),
     )
     execute(
-        """INSERT INTO approval_tokens
-           (token, txn_code, approver_email, action, expiry_datetime, used)
-           VALUES (?, ?, ?, ?, ?, 0)""",
+        "INSERT INTO approval_tokens (token, txn_code, approver_email, action, expiry_datetime, used) VALUES (?, ?, ?, ?, ?, 0)",
         (reject_token, txn_code, approver_email, "reject", expiry),
     )
 
@@ -57,37 +53,27 @@ def send_approval_email(txn_code, submitter_name, submitter_amoeba,
     reject_link = base_url + "/?token=" + reject_token
 
     subject = "Approval Required: " + txn_code
-
-    body = """
-    <html><body>
-    <p>Dear """ + approver_name + """,</p>
-    <p>A new internal transaction requires your approval.</p>
-    <table border="1" cellpadding="6" cellspacing="0">
-        <tr><td><b>Transaction ID</b></td><td>""" + txn_code + """</td></tr>
-        <tr><td><b>Submitted By</b></td><td>""" + submitter_name + """</td></tr>
-        <tr><td><b>From Amoeba</b></td><td>""" + submitter_amoeba + """</td></tr>
-        <tr><td><b>To Amoeba</b></td><td>""" + counterparty_amoeba + """</td></tr>
-        <tr><td><b>Category</b></td><td>""" + category + """</td></tr>
-        <tr><td><b>Amount</b></td><td>""" + currency + " " + str(amount) + """</td></tr>
-        <tr><td><b>Description</b></td><td>""" + description + """</td></tr>
-    </table>
-    <br>
-    <p>
-        <a href='""" + approve_link + """'
-           style='background:#28a745;color:white;padding:10px 20px;
-                  text-decoration:none;border-radius:5px;margin-right:10px;'>
-           APPROVE
-        </a>
-        &nbsp;&nbsp;
-        <a href='""" + reject_link + """'
-           style='background:#dc3545;color:white;padding:10px 20px;
-                  text-decoration:none;border-radius:5px;'>
-           REJECT
-        </a>
-    </p>
-    <p><small>These links expire in 7 days.</small></p>
-    </body></html>
-    """
+    body = (
+        "<html><body>"
+        "<p>Dear " + approver_name + ",</p>"
+        "<p>A new internal transaction requires your approval.</p>"
+        "<table border='1' cellpadding='6' cellspacing='0'>"
+        "<tr><td><b>Transaction ID</b></td><td>" + txn_code + "</td></tr>"
+        "<tr><td><b>Submitted By</b></td><td>" + submitter_name + "</td></tr>"
+        "<tr><td><b>From Amoeba</b></td><td>" + submitter_amoeba + "</td></tr>"
+        "<tr><td><b>To Amoeba</b></td><td>" + counterparty_amoeba + "</td></tr>"
+        "<tr><td><b>Category</b></td><td>" + category + "</td></tr>"
+        "<tr><td><b>Amount</b></td><td>" + currency + " " + str(amount) + "</td></tr>"
+        "<tr><td><b>Description</b></td><td>" + description + "</td></tr>"
+        "</table><br>"
+        "<p>"
+        "<a href='" + approve_link + "' style='background:#28a745;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;margin-right:10px;'>APPROVE</a>"
+        "&nbsp;&nbsp;"
+        "<a href='" + reject_link + "' style='background:#dc3545;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;'>REJECT</a>"
+        "</p>"
+        "<p><small>These links expire in 7 days.</small></p>"
+        "</body></html>"
+    )
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -122,8 +108,7 @@ def process_email_action():
         token = token[0]
 
     token_row = fetch_one(
-        """SELECT txn_code, approver_email, action, expiry_datetime, used
-           FROM approval_tokens WHERE token = ?""",
+        "SELECT txn_code, approver_email, action, expiry_datetime, used FROM approval_tokens WHERE token = ?",
         (token,),
     )
 
@@ -141,9 +126,7 @@ def process_email_action():
         st.error("This approval link has expired.")
         st.stop()
 
-    txn = fetch_one(
-        "SELECT status FROM transactions WHERE txn_code = ?", (txn_code,)
-    )
+    txn = fetch_one("SELECT status FROM transactions WHERE txn_code = ?", (txn_code,))
     if not txn:
         st.error("Transaction not found.")
         st.stop()
@@ -156,9 +139,7 @@ def process_email_action():
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     execute(
-        """UPDATE transactions
-           SET status = ?, approval_comment = ?, approval_datetime = ?
-           WHERE txn_code = ?""",
+        "UPDATE transactions SET status = ?, approval_comment = ?, approval_datetime = ? WHERE txn_code = ?",
         (new_status, "Action taken via email link", now_str, txn_code),
     )
     execute(
@@ -185,9 +166,7 @@ def submit_transaction_page(user):
     amoebas = [r[0] for r in fetch_all("SELECT name FROM amoebas ORDER BY name")]
     categories = [r[0] for r in fetch_all("SELECT name FROM categories ORDER BY name")]
     approvers = fetch_all(
-        """SELECT email, name FROM users
-           WHERE role IN ('approver','admin') AND active = 1
-           ORDER BY name"""
+        "SELECT email, name FROM users WHERE role IN ('approver','admin') AND active = 1 ORDER BY name"
     )
 
     approver_map = {}
@@ -201,13 +180,11 @@ def submit_transaction_page(user):
 
     with st.form("txn_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
-
         with col1:
             counterparty_amoeba = st.selectbox("Counterparty Amoeba / Department", amoebas)
             category = st.selectbox("Category", categories)
             currency = st.selectbox("Currency", CURRENCIES)
             amount = st.number_input("Amount", min_value=0.0, step=0.01)
-
         with col2:
             approver_label = st.selectbox("Select Approver", list(approver_map.keys()))
             description = st.text_area("Description / Remarks")
@@ -252,16 +229,9 @@ def submit_transaction_page(user):
         )
 
         send_approval_email(
-            txn_code,
-            user["name"],
-            user["amoeba"],
-            counterparty_amoeba,
-            category,
-            amount,
-            currency,
-            description,
-            approver_email,
-            approver_name,
+            txn_code, user["name"], user["amoeba"],
+            counterparty_amoeba, category, amount, currency,
+            description, approver_email, approver_name,
         )
 
 
@@ -276,9 +246,7 @@ def my_transactions_page(user):
         """SELECT txn_code, submit_date, submitter_amoeba, counterparty_amoeba,
                   category, amount, currency, approver_name, status,
                   approval_comment, approval_datetime
-           FROM transactions
-           WHERE submitter_email = ?
-           ORDER BY id DESC""",
+           FROM transactions WHERE submitter_email = ? ORDER BY id DESC""",
         (user["email"],),
     )
 
@@ -286,14 +254,11 @@ def my_transactions_page(user):
         st.info("No transactions submitted yet.")
         return
 
-    df = pd.DataFrame(
-        rows,
-        columns=[
-            "Transaction ID", "Submit Date", "From Amoeba", "To Amoeba",
-            "Category", "Amount", "Currency", "Approver", "Status",
-            "Approval Comment", "Approval Datetime",
-        ],
-    )
+    df = pd.DataFrame(rows, columns=[
+        "Transaction ID", "Submit Date", "From Amoeba", "To Amoeba",
+        "Category", "Amount", "Currency", "Approver", "Status",
+        "Approval Comment", "Approval Datetime",
+    ])
     st.dataframe(df, use_container_width=True)
 
 
@@ -306,7 +271,7 @@ def approval_queue_page(user):
 
     rows = fetch_all(
         """SELECT id, txn_code, submit_date, submitter_name, submitter_amoeba,
-                  counterparty_amoeba, category, amount, currency, description, status
+                  counterparty_amoeba, category, amount, currency, description
            FROM transactions
            WHERE approver_email = ? AND status = 'Pending Approval'
            ORDER BY id DESC""",
@@ -318,20 +283,10 @@ def approval_queue_page(user):
         return
 
     for r in rows:
-        txn_id = r[0]
-        txn_code = r[1]
-        submit_date = r[2]
-        submitter_name = r[3]
-        from_amoeba = r[4]
-        to_amoeba = r[5]
-        category = r[6]
-        amount = r[7]
-        currency = r[8]
-        description = r[9]
+        txn_id, txn_code, submit_date, submitter_name, from_amoeba, \
+            to_amoeba, category, amount, currency, description = r
 
-        with st.expander(
-            txn_code + " | " + submitter_name + " | " + str(amount) + " " + currency
-        ):
+        with st.expander(txn_code + " | " + submitter_name + " | " + str(amount) + " " + currency):
             col1, col2 = st.columns(2)
             with col1:
                 st.write("**Submit Date:** " + submit_date)
@@ -347,9 +302,7 @@ def approval_queue_page(user):
             with col_a:
                 if st.button("Approve " + txn_code, key="approve_" + str(txn_id)):
                     execute(
-                        """UPDATE transactions
-                           SET status = ?, approval_comment = ?, approval_datetime = ?
-                           WHERE id = ?""",
+                        "UPDATE transactions SET status=?, approval_comment=?, approval_datetime=? WHERE id=?",
                         ("Approved", comment, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), txn_id),
                     )
                     st.success(txn_code + " approved.")
@@ -358,9 +311,7 @@ def approval_queue_page(user):
             with col_b:
                 if st.button("Reject " + txn_code, key="reject_" + str(txn_id)):
                     execute(
-                        """UPDATE transactions
-                           SET status = ?, approval_comment = ?, approval_datetime = ?
-                           WHERE id = ?""",
+                        "UPDATE transactions SET status=?, approval_comment=?, approval_datetime=? WHERE id=?",
                         ("Rejected", comment, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), txn_id),
                     )
                     st.warning(txn_code + " rejected.")
@@ -389,3 +340,15 @@ def admin_portal_page():
         st.dataframe(users_df, use_container_width=True)
 
         amoebas = [r[0] for r in fetch_all("SELECT name FROM amoebas ORDER BY name")]
+
+        st.markdown("#### Add New User")
+        with st.form("add_user_form"):
+            new_email = st.text_input("Email / Login ID")
+            new_name = st.text_input("Full Name")
+            new_password = st.text_input("Password")
+            new_role = st.selectbox("Role", ["submitter", "approver", "admin"])
+            new_amoeba = st.selectbox("Amoeba", amoebas, key="add_user_amoeba")
+            add_user_btn = st.form_submit_button("Add User")
+
+        if add_user_btn:
+            if not new_email or not new_name or not new
