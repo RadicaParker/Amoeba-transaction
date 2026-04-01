@@ -2,6 +2,7 @@ import streamlit as st
 from db import init_db, seed_data
 from auth import login_page, logout
 from views import (
+    process_email_action,
     submit_transaction_page,
     my_transactions_page,
     approval_queue_page,
@@ -12,6 +13,7 @@ st.set_page_config(page_title="Radica Amoeba Internal Transaction", layout="wide
 
 init_db()
 seed_data()
+process_email_action()
 
 if "user" not in st.session_state:
     st.session_state.user = None
@@ -24,12 +26,7 @@ user = st.session_state.user
 
 st.title("Radica Amoeba Internal Transaction")
 st.caption(
-    "Logged in as: "
-    + user["name"]
-    + " ("
-    + user["role"]
-    + ") | Amoeba: "
-    + user["amoeba"]
+    "Logged in as: " + user["name"] + " (" + user["role"] + ") | Amoeba: " + user["amoeba"]
 )
 
 with st.sidebar:
