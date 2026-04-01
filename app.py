@@ -6,8 +6,8 @@ from views import (
     submit_transaction_page,
     my_transactions_page,
     approval_queue_page,
-    admin_portal_page,
 )
+from admin import admin_portal_page
 
 st.set_page_config(page_title="Radica Amoeba Internal Transaction", layout="wide")
 
@@ -27,12 +27,8 @@ user = st.session_state.user
 
 st.title("Radica Amoeba Internal Transaction")
 st.caption(
-    "Logged in as: "
-    + user["name"]
-    + " ("
-    + user["role"]
-    + ") | Amoeba: "
-    + user["amoeba"]
+    "Logged in as: " + user["name"] +
+    " (" + user["role"] + ") | Amoeba: " + user["amoeba"]
 )
 
 with st.sidebar:
