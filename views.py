@@ -1,6 +1,5 @@
 import io
 import smtplib
-import secrets
 import uuid
 from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
@@ -77,13 +76,13 @@ def send_approval_email(txn_code, submitter_name, submitter_amoeba,
         <a href='""" + approve_link + """'
            style='background:#28a745;color:white;padding:10px 20px;
                   text-decoration:none;border-radius:5px;margin-right:10px;'>
-           ✅ APPROVE
+           APPROVE
         </a>
         &nbsp;&nbsp;
         <a href='""" + reject_link + """'
            style='background:#dc3545;color:white;padding:10px 20px;
                   text-decoration:none;border-radius:5px;'>
-           ❌ REJECT
+           REJECT
         </a>
     </p>
     <p><small>These links expire in 7 days.</small></p>
@@ -168,7 +167,7 @@ def process_email_action():
     )
 
     if new_status == "Approved":
-        st.success("Transaction " + txn_code + " has been APPROVED.")
+        st.success("Transaction " + txn_code + " has been APPROVED successfully.")
     else:
         st.warning("Transaction " + txn_code + " has been REJECTED.")
 
@@ -197,7 +196,7 @@ def submit_transaction_page(user):
             approver_map[name + " (" + email + ")"] = (email, name)
 
     if not approver_map:
-        st.warning("No approvers available.")
+        st.warning("No approvers available. Please ask admin to assign an approver.")
         return
 
     with st.form("txn_form", clear_on_submit=True):
@@ -207,4 +206,186 @@ def submit_transaction_page(user):
             counterparty_amoeba = st.selectbox("Counterparty Amoeba / Department", amoebas)
             category = st.selectbox("Category", categories)
             currency = st.selectbox("Currency", CURRENCIES)
-            amount = st.number_input("Amount", min_value=0.
+            amount = st.number_input("Amount", min_value=0.0, step=0.01)
+
+        with col2:
+            approver_label = st.selectbox("Select Approver", list(approver_map.keys()))
+            description = st.text_area("Description / Remarks")
+            attachment = st.file_uploader("Attachment (optional)")
+
+        submitted = st.form_submit_button("Submit Transaction")
+
+    if submitted:
+        if amount <= 0:
+            st.error("Amount must be greater than zero.")
+            return
+
+        approver_email, approver_name = approver_map[approver_label]
+        attachment_name = attachment.name if attachment else ""
+        txn_code = next_txn_code()
+
+        execute(
+            """INSERT INTO transactions (
+                txn_code, submit_date, submitter_email, submitter_name,
+                submitter_amoeba, counterparty_amoeba, category, description,
+                amount, currency, approver_email, approver_name,
+                attachment_name, status, approval_comment, approval_datetime
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                txn_code,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                user["email"],
+                user["name"],
+                user["amoeba"],
+                counterparty_amoeba,
+                category,
+                description,
+                amount,
+                currency,
+                approver_email,
+                approver_name,
+                attachment_name,
+                "Pending Approval",
+                "",
+                "",
+            ),
+        )
+
+        send_approval_email(
+            txn_code,
+            user["name"],
+            user["amoeba"],
+            counterparty_amoeba,
+            category,
+            amount,
+            currency,
+            description,
+            approver_email,
+            approver_name,
+        )
+
+
+# ─────────────────────────────────────────────
+# MY TRANSACTIONS
+# ─────────────────────────────────────────────
+
+def my_transactions_page(user):
+    st.subheader("My Transactions")
+
+    rows = fetch_all(
+        """SELECT txn_code, submit_date, submitter_amoeba, counterparty_amoeba,
+                  category, amount, currency, approver_name, status,
+                  approval_comment, approval_datetime
+           FROM transactions
+           WHERE submitter_email = ?
+           ORDER BY id DESC""",
+        (user["email"],),
+    )
+
+    if not rows:
+        st.info("No transactions submitted yet.")
+        return
+
+    df = pd.DataFrame(
+        rows,
+        columns=[
+            "Transaction ID", "Submit Date", "From Amoeba", "To Amoeba",
+            "Category", "Amount", "Currency", "Approver", "Status",
+            "Approval Comment", "Approval Datetime",
+        ],
+    )
+    st.dataframe(df, use_container_width=True)
+
+
+# ─────────────────────────────────────────────
+# APPROVAL QUEUE
+# ─────────────────────────────────────────────
+
+def approval_queue_page(user):
+    st.subheader("Approval Queue")
+
+    rows = fetch_all(
+        """SELECT id, txn_code, submit_date, submitter_name, submitter_amoeba,
+                  counterparty_amoeba, category, amount, currency, description, status
+           FROM transactions
+           WHERE approver_email = ? AND status = 'Pending Approval'
+           ORDER BY id DESC""",
+        (user["email"],),
+    )
+
+    if not rows:
+        st.info("No pending approvals.")
+        return
+
+    for r in rows:
+        txn_id = r[0]
+        txn_code = r[1]
+        submit_date = r[2]
+        submitter_name = r[3]
+        from_amoeba = r[4]
+        to_amoeba = r[5]
+        category = r[6]
+        amount = r[7]
+        currency = r[8]
+        description = r[9]
+
+        with st.expander(
+            txn_code + " | " + submitter_name + " | " + str(amount) + " " + currency
+        ):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("**Submit Date:** " + submit_date)
+                st.write("**From:** " + from_amoeba)
+                st.write("**To:** " + to_amoeba)
+            with col2:
+                st.write("**Category:** " + category)
+                st.write("**Description:** " + description)
+
+            comment = st.text_input("Comment (optional)", key="comment_" + str(txn_id))
+            col_a, col_b = st.columns(2)
+
+            with col_a:
+                if st.button("Approve " + txn_code, key="approve_" + str(txn_id)):
+                    execute(
+                        """UPDATE transactions
+                           SET status = ?, approval_comment = ?, approval_datetime = ?
+                           WHERE id = ?""",
+                        ("Approved", comment, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), txn_id),
+                    )
+                    st.success(txn_code + " approved.")
+                    st.rerun()
+
+            with col_b:
+                if st.button("Reject " + txn_code, key="reject_" + str(txn_id)):
+                    execute(
+                        """UPDATE transactions
+                           SET status = ?, approval_comment = ?, approval_datetime = ?
+                           WHERE id = ?""",
+                        ("Rejected", comment, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), txn_id),
+                    )
+                    st.warning(txn_code + " rejected.")
+                    st.rerun()
+
+
+# ─────────────────────────────────────────────
+# ADMIN PORTAL
+# ─────────────────────────────────────────────
+
+def admin_portal_page():
+    st.subheader("Admin Portal")
+
+    tab1, tab2, tab3, tab4 = st.tabs(["Users", "Amoebas", "Categories", "Export"])
+
+    # ── USERS ──────────────────────────────────
+    with tab1:
+        st.markdown("### User Management")
+
+        users = fetch_all(
+            "SELECT id, email, name, role, amoeba, active FROM users ORDER BY name"
+        )
+        users_df = pd.DataFrame(
+            users, columns=["ID", "Email", "Name", "Role", "Amoeba", "Active"]
+        )
+        st.dataframe(users_df, use_container_width=True)
+
+        amoebas = [r[0] for r in fetch_all("SELECT name FROM amoebas ORDER BY name")]
