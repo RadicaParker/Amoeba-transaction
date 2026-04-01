@@ -2,7 +2,7 @@ import os
 import sqlite3
 from datetime import datetime
 
-DB_PATH = "output/radica_amoeba_internal_transaction/data/app.db"
+DB_PATH = "app.db"
 
 
 def get_conn():
@@ -10,11 +10,10 @@ def get_conn():
 
 
 def init_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute('''
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE,
@@ -24,23 +23,23 @@ def init_db():
             amoeba TEXT,
             active INTEGER DEFAULT 1
         )
-    ''')
+    """)
 
-    cur.execute('''
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS amoebas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE
         )
-    ''')
+    """)
 
-    cur.execute('''
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE
         )
-    ''')
+    """)
 
-    cur.execute('''
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             txn_code TEXT UNIQUE,
@@ -60,7 +59,7 @@ def init_db():
             approval_comment TEXT,
             approval_datetime TEXT
         )
-    ''')
+    """)
 
     conn.commit()
     conn.close()
@@ -105,6 +104,15 @@ def fetch_all(query, params=()):
     return rows
 
 
+def fetch_one(query, params=()):
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(query, params)
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+
 def execute(query, params=()):
     conn = get_conn()
     cur = conn.cursor()
@@ -114,4 +122,4 @@ def execute(query, params=()):
 
 
 def next_txn_code():
-    return f"TXN-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    return "TXN-" + datetime.now().strftime("%Y%m%d%H%M%S")
