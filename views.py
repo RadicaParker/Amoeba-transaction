@@ -63,12 +63,13 @@ def send_approval_email(txn_code, approver_email, approver_name, submitter_name,
 
 
 def process_email_action():
-    query_params = st.experimental_get_query_params()
-    token_list = query_params.get("token", [])
-    token = token_list[0] if token_list else None
+    token = st.query_params.get("token")
 
     if not token:
         return
+
+    if isinstance(token, list):
+        token = token[0]
 
     token_row = fetch_one(
         "SELECT txn_code, approver_email, action, expiry_datetime, used FROM approval_tokens WHERE token = ?",
@@ -111,7 +112,7 @@ def process_email_action():
     )
 
     st.success("Transaction " + txn_code + " has been " + new_status + " via email link.")
-    st.experimental_set_query_params()
+    st.query_params.clear()
 
 def submit_transaction_page(user):
     st.subheader("Submit Transaction")
