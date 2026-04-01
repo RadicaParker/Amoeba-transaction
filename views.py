@@ -63,8 +63,10 @@ def send_approval_email(txn_code, approver_email, approver_name, submitter_name,
 
 
 def process_email_action():
-    query_params = st.query_params
-    token = query_params.get("token")
+    query_params = st.experimental_get_query_params()
+    token_list = query_params.get("token", [])
+    token = token_list[0] if token_list else None
+
     if not token:
         return
 
@@ -101,7 +103,7 @@ def process_email_action():
 
     execute(
         "UPDATE transactions SET status = ?, approval_comment = ?, approval_datetime = ? WHERE txn_code = ?",
-        ("Approved" if action == "approve" else "Rejected", "Action from email link", now_str, txn_code),
+        (new_status, "Action from email link", now_str, txn_code),
     )
     execute(
         "UPDATE approval_tokens SET used = 1, used_datetime = ? WHERE token = ?",
@@ -109,8 +111,7 @@ def process_email_action():
     )
 
     st.success("Transaction " + txn_code + " has been " + new_status + " via email link.")
-    st.query_params.clear()
-
+    st.experimental_set_query_params()
 
 def submit_transaction_page(user):
     st.subheader("Submit Transaction")
