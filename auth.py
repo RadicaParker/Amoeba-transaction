@@ -3,10 +3,11 @@ from db import fetch_all
 
 
 def login_page():
-    st.title("Login")
-    st.caption("Admin login: radicafinace / radica!23")
+    st.title("Radica Amoeba Internal Transaction")
+    st.subheader("Login")
+
     with st.form("login_form"):
-        email = st.text_input("Login ID")
+        email = st.text_input("Login ID / Email")
         password = st.text_input("Password", type="password")
         submit = st.form_submit_button("Login")
 
@@ -25,7 +26,7 @@ def login_page():
             }
             st.rerun()
         else:
-            st.error("Invalid login.")
+            st.error("Invalid login ID or password.")
 
 
 def logout():
