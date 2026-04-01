@@ -1,5 +1,5 @@
 import streamlit as st
-from app.db import fetch_all
+from db import fetch_all
 
 
 def login_page():
