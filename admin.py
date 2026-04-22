@@ -39,7 +39,7 @@ def admin_portal_page():
             else:
                 try:
                     execute(
-                        "INSERT INTO users (email, name, password, role, amoeba, active) VALUES (?, ?, ?, ?, ?, 1)",
+                        "INSERT INTO users (email, name, password, role, amoeba, active) VALUES (%s, %s, %s, %s, %s, 1::smallint)",
                         (nu_email, nu_name, nu_password, nu_role, nu_amoeba),
                     )
                     st.success("User added successfully.")
@@ -52,10 +52,12 @@ def admin_portal_page():
             str(u[0]) + " - " + u[2] + " (" + u[1] + ")": u[0] for u in users
         }
         if user_options:
-            sel_label = st.selectbox("Select user to edit", list(user_options.keys()), key="edit_user_select")
+            sel_label = st.selectbox(
+                "Select user to edit", list(user_options.keys()), key="edit_user_select"
+            )
             sel_id = user_options[sel_label]
             sel = fetch_one(
-                "SELECT id, email, name, password, role, amoeba, active FROM users WHERE id=?",
+                "SELECT id, email, name, password, role, amoeba, active FROM users WHERE id=%s",
                 (sel_id,),
             )
             if sel:
@@ -84,14 +86,17 @@ def admin_portal_page():
 
                 if save_user_btn:
                     execute(
-                        "UPDATE users SET email=?, name=?, password=?, role=?, amoeba=?, active=? WHERE id=?",
+                        "UPDATE users SET email=%s, name=%s, password=%s, role=%s, amoeba=%s, active=%s::smallint WHERE id=%s",
                         (ed_email, ed_name, ed_password, ed_role, ed_amoeba, ed_active, sel_id),
                     )
                     st.success("User updated.")
                     st.rerun()
 
                 if deactivate_btn:
-                    execute("UPDATE users SET active=0 WHERE id=?", (sel_id,))
+                    execute(
+                        "UPDATE users SET active=0::smallint WHERE id=%s",
+                        (sel_id,),
+                    )
                     st.warning("User deactivated.")
                     st.rerun()
 
@@ -112,7 +117,10 @@ def admin_portal_page():
                 st.error("Amoeba name is required.")
             else:
                 try:
-                    execute("INSERT INTO amoebas (name) VALUES (?)", (new_amoeba_name,))
+                    execute(
+                        "INSERT INTO amoebas (name) VALUES (%s)",
+                        (new_amoeba_name,),
+                    )
                     st.success("Amoeba added.")
                     st.rerun()
                 except Exception:
@@ -128,7 +136,8 @@ def admin_portal_page():
             )
             sel_amoeba_id = amoeba_options[sel_amoeba_label]
             sel_amoeba = fetch_one(
-                "SELECT id, name FROM amoebas WHERE id=?", (sel_amoeba_id,)
+                "SELECT id, name FROM amoebas WHERE id=%s",
+                (sel_amoeba_id,),
             )
             if sel_amoeba:
                 with st.form("edit_amoeba_form"):
@@ -141,7 +150,7 @@ def admin_portal_page():
 
                 if save_amoeba_btn:
                     execute(
-                        "UPDATE amoebas SET name=? WHERE id=?",
+                        "UPDATE amoebas SET name=%s WHERE id=%s",
                         (ed_amoeba_name, sel_amoeba_id),
                     )
                     st.success("Amoeba updated.")
@@ -149,13 +158,16 @@ def admin_portal_page():
 
                 if delete_amoeba_btn:
                     used = fetch_one(
-                        "SELECT COUNT(*) FROM transactions WHERE submitter_amoeba=? OR counterparty_amoeba=?",
+                        "SELECT COUNT(*) FROM transactions WHERE submitter_amoeba=%s OR counterparty_amoeba=%s",
                         (sel_amoeba[1], sel_amoeba[1]),
                     )[0]
                     if used > 0:
                         st.error("Cannot delete. This amoeba is used in " + str(used) + " transaction(s).")
                     else:
-                        execute("DELETE FROM amoebas WHERE id=?", (sel_amoeba_id,))
+                        execute(
+                            "DELETE FROM amoebas WHERE id=%s",
+                            (sel_amoeba_id,),
+                        )
                         st.warning("Amoeba deleted.")
                         st.rerun()
 
@@ -176,7 +188,10 @@ def admin_portal_page():
                 st.error("Category name is required.")
             else:
                 try:
-                    execute("INSERT INTO categories (name) VALUES (?)", (new_cat_name,))
+                    execute(
+                        "INSERT INTO categories (name) VALUES (%s)",
+                        (new_cat_name,),
+                    )
                     st.success("Category added.")
                     st.rerun()
                 except Exception:
@@ -190,7 +205,8 @@ def admin_portal_page():
             )
             sel_cat_id = cat_options[sel_cat_label]
             sel_cat = fetch_one(
-                "SELECT id, name FROM categories WHERE id=?", (sel_cat_id,)
+                "SELECT id, name FROM categories WHERE id=%s",
+                (sel_cat_id,),
             )
             if sel_cat:
                 with st.form("edit_cat_form"):
@@ -203,7 +219,7 @@ def admin_portal_page():
 
                 if save_cat_btn:
                     execute(
-                        "UPDATE categories SET name=? WHERE id=?",
+                        "UPDATE categories SET name=%s WHERE id=%s",
                         (ed_cat_name, sel_cat_id),
                     )
                     st.success("Category updated.")
@@ -211,13 +227,16 @@ def admin_portal_page():
 
                 if delete_cat_btn:
                     used = fetch_one(
-                        "SELECT COUNT(*) FROM transactions WHERE category=?",
+                        "SELECT COUNT(*) FROM transactions WHERE category=%s",
                         (sel_cat[1],),
                     )[0]
                     if used > 0:
                         st.error("Cannot delete. This category is used in " + str(used) + " transaction(s).")
                     else:
-                        execute("DELETE FROM categories WHERE id=?", (sel_cat_id,))
+                        execute(
+                            "DELETE FROM categories WHERE id=%s",
+                            (sel_cat_id,),
+                        )
                         st.warning("Category deleted.")
                         st.rerun()
 
