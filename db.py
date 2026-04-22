@@ -1,5 +1,4 @@
 import psycopg2
-import psycopg2.extras
 from datetime import datetime
 import streamlit as st
 
@@ -8,6 +7,7 @@ def get_conn():
     url = st.secrets["DATABASE_URL"]
     conn = psycopg2.connect(url, sslmode="require")
     return conn
+
 
 def init_db():
     conn = get_conn()
@@ -50,7 +50,7 @@ def init_db():
             counterparty_amoeba TEXT,
             category TEXT,
             description TEXT,
-            amount REAL,
+            amount FLOAT,
             currency TEXT,
             approver_email TEXT,
             approver_name TEXT,
@@ -101,13 +101,13 @@ def seed_data():
     cur.execute("SELECT COUNT(*) FROM users")
     if cur.fetchone()[0] == 0:
         users = [
-            ("radicafinace", "Radica Finance", "radica!23", "admin", "Finance", 1),
-            ("manager@radica.com", "Department Manager", "Admin123!", "approver", "Operations", 1),
-            ("staff@radica.com", "Staff User", "Admin123!", "submitter", "Marketing", 1),
+            ("radicafinace", "Radica Finance", "radica!23", "admin", "Finance"),
+            ("manager@radica.com", "Department Manager", "Admin123!", "approver", "Operations"),
+            ("staff@radica.com", "Staff User", "Admin123!", "submitter", "Marketing"),
         ]
         for u in users:
             cur.execute(
-                "INSERT INTO users (email, name, password, role, amoeba, active) VALUES (%s, %s, %s, %s, %s, %s)",
+                "INSERT INTO users (email, name, password, role, amoeba, active) VALUES (%s, %s, %s, %s, %s, 1)",
                 u,
             )
 
