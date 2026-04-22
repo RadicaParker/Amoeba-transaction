@@ -237,8 +237,8 @@ def approval_queue_page(user):
         st.info("No pending approvals.")
         return
     for r in rows:
-        txn_id, txn_code, submit_date, submitter_name, from_amoeba, \
-            to_amoeba, category, amount, currency, description = r
+        (txn_id, txn_code, submit_date, submitter_name, from_amoeba,
+         to_amoeba, category, amount, currency, description) = r
         with st.expander(txn_code + " | " + submitter_name + " | " + str(amount) + " " + currency):
             col1, col2 = st.columns(2)
             with col1:
