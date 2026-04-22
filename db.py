@@ -6,7 +6,7 @@ import streamlit as st
 
 def get_conn():
     url = st.secrets["DATABASE_URL"]
-    conn = psycopg2.connect(url)
+    conn = psycopg2.connect(url, sslmode="require")
     return conn
 
 def init_db():
