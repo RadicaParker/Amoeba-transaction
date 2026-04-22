@@ -1,11 +1,11 @@
-import sqlite3
+import psycopg2
+import psycopg2.extras
 from datetime import datetime
-
-DB_PATH = "app.db"
+import streamlit as st
 
 
 def get_conn():
-    return sqlite3.connect(DB_PATH, check_same_thread=False)
+    return psycopg2.connect(st.secrets["DATABASE_URL"], sslmode="require")
 
 
 def init_db():
@@ -14,7 +14,7 @@ def init_db():
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             email TEXT UNIQUE,
             name TEXT,
             password TEXT,
@@ -26,21 +26,21 @@ def init_db():
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS amoebas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT UNIQUE
         )
     """)
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT UNIQUE
         )
     """)
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             txn_code TEXT UNIQUE,
             submit_date TEXT,
             submitter_email TEXT,
@@ -62,7 +62,7 @@ def init_db():
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS approval_tokens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             token TEXT UNIQUE,
             txn_code TEXT,
             approver_email TEXT,
@@ -74,6 +74,7 @@ def init_db():
     """)
 
     conn.commit()
+    cur.close()
     conn.close()
 
 
@@ -84,7 +85,7 @@ def seed_data():
     cur.execute("SELECT COUNT(*) FROM amoebas")
     if cur.fetchone()[0] == 0:
         for a in ["Sales", "Marketing", "Product", "Finance", "Operations"]:
-            cur.execute("INSERT INTO amoebas (name) VALUES (?)", (a,))
+            cur.execute("INSERT INTO amoebas (name) VALUES (%s)", (a,))
 
     cur.execute("SELECT COUNT(*) FROM categories")
     if cur.fetchone()[0] == 0:
@@ -94,7 +95,7 @@ def seed_data():
             "Department Allocation",
             "Adjustment",
         ]:
-            cur.execute("INSERT INTO categories (name) VALUES (?)", (c,))
+            cur.execute("INSERT INTO categories (name) VALUES (%s)", (c,))
 
     cur.execute("SELECT COUNT(*) FROM users")
     if cur.fetchone()[0] == 0:
@@ -103,12 +104,14 @@ def seed_data():
             ("manager@radica.com", "Department Manager", "Admin123!", "approver", "Operations", 1),
             ("staff@radica.com", "Staff User", "Admin123!", "submitter", "Marketing", 1),
         ]
-        cur.executemany(
-            "INSERT INTO users (email, name, password, role, amoeba, active) VALUES (?, ?, ?, ?, ?, ?)",
-            users,
-        )
+        for u in users:
+            cur.execute(
+                "INSERT INTO users (email, name, password, role, amoeba, active) VALUES (%s, %s, %s, %s, %s, %s)",
+                u,
+            )
 
     conn.commit()
+    cur.close()
     conn.close()
 
 
@@ -117,6 +120,7 @@ def fetch_all(query, params=()):
     cur = conn.cursor()
     cur.execute(query, params)
     rows = cur.fetchall()
+    cur.close()
     conn.close()
     return rows
 
@@ -126,6 +130,7 @@ def fetch_one(query, params=()):
     cur = conn.cursor()
     cur.execute(query, params)
     row = cur.fetchone()
+    cur.close()
     conn.close()
     return row
 
@@ -135,9 +140,9 @@ def execute(query, params=()):
     cur = conn.cursor()
     cur.execute(query, params)
     conn.commit()
+    cur.close()
     conn.close()
 
 
 def next_txn_code():
-    return "TXN-" + datetime.now().strftime("%Y%m%d%H%M%S")
     return "TXN-" + datetime.now().strftime("%Y%m%d%H%M%S")
