@@ -69,7 +69,7 @@ def init_db():
             approver_email TEXT,
             action TEXT,
             expiry_datetime TEXT,
-            used INTEGER DEFAULT 0,
+            used SMALLINT DEFAULT 0,
             used_datetime TEXT
         )
     """)
@@ -107,7 +107,8 @@ def seed_data():
         ]
         for u in users:
             cur.execute(
-                "INSERT INTO users (email, name, password, role, amoeba, active) VALUES (%s, %s, %s, %s, %s, 1)",
+                """INSERT INTO users (email, name, password, role, amoeba, active)
+                   VALUES (%s, %s, %s, %s, %s, 1::smallint)""",
                 u,
             )
 
