@@ -1,141 +1,160 @@
-import sqlite3
+import streamlit as st
+from sqlalchemy import text
 from datetime import datetime
-
-DB_PATH = "app.db"
 
 
 def get_conn():
-    return sqlite3.connect(DB_PATH, check_same_thread=False)
+    return st.connection("postgresql", type="sql")
 
 
 def init_db():
     conn = get_conn()
-    cur = conn.cursor()
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE,
-            name TEXT,
-            password TEXT,
-            role TEXT,
-            amoeba TEXT,
-            active INTEGER DEFAULT 1
-        )
-    """)
+    create_sql = """
+    CREATE TABLE IF NOT EXISTS users (
+        id BIGSERIAL PRIMARY KEY,
+        email TEXT UNIQUE,
+        name TEXT,
+        password TEXT,
+        role TEXT,
+        amoeba TEXT,
+        active BOOLEAN DEFAULT TRUE
+    );
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS amoebas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE
-        )
-    """)
+    CREATE TABLE IF NOT EXISTS amoebas (
+        id BIGSERIAL PRIMARY KEY,
+        name TEXT UNIQUE
+    );
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE
-        )
-    """)
+    CREATE TABLE IF NOT EXISTS categories (
+        id BIGSERIAL PRIMARY KEY,
+        name TEXT UNIQUE
+    );
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            txn_code TEXT UNIQUE,
-            submit_date TEXT,
-            submitter_email TEXT,
-            submitter_name TEXT,
-            submitter_amoeba TEXT,
-            counterparty_amoeba TEXT,
-            category TEXT,
-            description TEXT,
-            amount REAL,
-            currency TEXT,
-            approver_email TEXT,
-            approver_name TEXT,
-            attachment_name TEXT,
-            status TEXT,
-            approval_comment TEXT,
-            approval_datetime TEXT
-        )
-    """)
+    CREATE TABLE IF NOT EXISTS transactions (
+        id BIGSERIAL PRIMARY KEY,
+        txn_code TEXT UNIQUE,
+        submit_date TIMESTAMP,
+        submitter_email TEXT,
+        submitter_name TEXT,
+        submitter_amoeba TEXT,
+        counterparty_amoeba TEXT,
+        category TEXT,
+        description TEXT,
+        amount NUMERIC,
+        currency TEXT,
+        approver_email TEXT,
+        approver_name TEXT,
+        attachment_name TEXT,
+        status TEXT,
+        approval_comment TEXT,
+        approval_datetime TIMESTAMP
+    );
 
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS approval_tokens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            token TEXT UNIQUE,
-            txn_code TEXT,
-            approver_email TEXT,
-            action TEXT,
-            expiry_datetime TEXT,
-            used INTEGER DEFAULT 0,
-            used_datetime TEXT
-        )
-    """)
+    CREATE TABLE IF NOT EXISTS approval_tokens (
+        id BIGSERIAL PRIMARY KEY,
+        token TEXT UNIQUE,
+        txn_code TEXT,
+        approver_email TEXT,
+        action TEXT,
+        expiry_datetime TIMESTAMP,
+        used BOOLEAN DEFAULT FALSE,
+        used_datetime TIMESTAMP
+    );
+    """
 
-    conn.commit()
-    conn.close()
+    with conn.session as s:
+        for stmt in create_sql.split(";"):
+            stmt = stmt.strip()
+            if stmt:
+                s.execute(text(stmt))
+        s.commit()
 
 
 def seed_data():
     conn = get_conn()
-    cur = conn.cursor()
 
-    cur.execute("SELECT COUNT(*) FROM amoebas")
-    if cur.fetchone()[0] == 0:
-        for a in ["Sales", "Marketing", "Product", "Finance", "Operations"]:
-            cur.execute("INSERT INTO amoebas (name) VALUES (?)", (a,))
+    with conn.session as s:
+        amoeba_count = s.execute(text("SELECT COUNT(*) FROM amoebas")).scalar()
+        if amoeba_count == 0:
+            for a in ["Sales", "Marketing", "Product", "Finance", "Operations"]:
+                s.execute(text("INSERT INTO amoebas (name) VALUES (:name)"), {"name": a})
 
-    cur.execute("SELECT COUNT(*) FROM categories")
-    if cur.fetchone()[0] == 0:
-        for c in [
-            "Internal Recharge",
-            "Shared Cost",
-            "Department Allocation",
-            "Adjustment",
-        ]:
-            cur.execute("INSERT INTO categories (name) VALUES (?)", (c,))
+        category_count = s.execute(text("SELECT COUNT(*) FROM categories")).scalar()
+        if category_count == 0:
+            for c in [
+                "Internal Recharge",
+                "Shared Cost",
+                "Department Allocation",
+                "Adjustment",
+            ]:
+                s.execute(text("INSERT INTO categories (name) VALUES (:name)"), {"name": c})
 
-    cur.execute("SELECT COUNT(*) FROM users")
-    if cur.fetchone()[0] == 0:
-        users = [
-            ("radicafinace", "Radica Finance", "radica!23", "admin", "Finance", 1),
-            ("manager@radica.com", "Department Manager", "Admin123!", "approver", "Operations", 1),
-            ("staff@radica.com", "Staff User", "Admin123!", "submitter", "Marketing", 1),
-        ]
-        cur.executemany(
-            "INSERT INTO users (email, name, password, role, amoeba, active) VALUES (?, ?, ?, ?, ?, ?)",
-            users,
-        )
+        user_count = s.execute(text("SELECT COUNT(*) FROM users")).scalar()
+        if user_count == 0:
+            users = [
+                {
+                    "email": "radicafinace",
+                    "name": "Radica Finance",
+                    "password": "radica!23",
+                    "role": "admin",
+                    "amoeba": "Finance",
+                    "active": True,
+                },
+                {
+                    "email": "manager@radica.com",
+                    "name": "Department Manager",
+                    "password": "Admin123!",
+                    "role": "approver",
+                    "amoeba": "Operations",
+                    "active": True,
+                },
+                {
+                    "email": "staff@radica.com",
+                    "name": "Staff User",
+                    "password": "Admin123!",
+                    "role": "submitter",
+                    "amoeba": "Marketing",
+                    "active": True,
+                },
+            ]
+            for u in users:
+                s.execute(
+                    text("""
+                        INSERT INTO users (email, name, password, role, amoeba, active)
+                        VALUES (:email, :name, :password, :role, :amoeba, :active)
+                    """),
+                    u,
+                )
 
-    conn.commit()
-    conn.close()
+        s.commit()
 
 
-def fetch_all(query, params=()):
+def fetch_all(query, params=None):
+    if params is None:
+        params = {}
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute(query, params)
-    rows = cur.fetchall()
-    conn.close()
-    return rows
+    with conn.session as s:
+        result = s.execute(text(query), params)
+        return result.fetchall()
 
 
-def fetch_one(query, params=()):
+def fetch_one(query, params=None):
+    if params is None:
+        params = {}
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute(query, params)
-    row = cur.fetchone()
-    conn.close()
-    return row
+    with conn.session as s:
+        result = s.execute(text(query), params)
+        return result.fetchone()
 
 
-def execute(query, params=()):
+def execute(query, params=None):
+    if params is None:
+        params = {}
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute(query, params)
-    conn.commit()
-    conn.close()
+    with conn.session as s:
+        s.execute(text(query), params)
+        s.commit()
 
 
 def next_txn_code():
