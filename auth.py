@@ -13,16 +13,9 @@ def login_page():
 
     if submit:
         rows = fetch_all(
-            """
-            SELECT email, name, role, amoeba
-            FROM users
-            WHERE email = :email
-              AND password = :password
-              AND active = TRUE
-            """,
-            {"email": email, "password": password},
+            "SELECT email, name, role, amoeba FROM users WHERE email = %s AND password = %s AND active = 1",
+            (email, password),
         )
-
         if rows:
             r = rows[0]
             st.session_state.user = {
