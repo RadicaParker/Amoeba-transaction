@@ -21,7 +21,7 @@ def init_db():
             password TEXT,
             role TEXT,
             amoeba TEXT,
-            active INTEGER DEFAULT 1
+            active SMALLINT DEFAULT 1
         )
     """)
 
