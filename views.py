@@ -35,11 +35,11 @@ def send_approval_email(txn_code, submitter_name, submitter_amoeba,
     expiry = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
 
     execute(
-        "INSERT INTO approval_tokens (token, txn_code, approver_email, action, expiry_datetime, used) VALUES (?, ?, ?, ?, ?, 0)",
+        "INSERT INTO approval_tokens (token, txn_code, approver_email, action, expiry_datetime, used) VALUES (%s, %s, %s, %s, %s, 0::smallint)",
         (approve_token, txn_code, approver_email, "approve", expiry),
     )
     execute(
-        "INSERT INTO approval_tokens (token, txn_code, approver_email, action, expiry_datetime, used) VALUES (?, ?, ?, ?, ?, 0)",
+        "INSERT INTO approval_tokens (token, txn_code, approver_email, action, expiry_datetime, used) VALUES (%s, %s, %s, %s, %s, 0::smallint)",
         (reject_token, txn_code, approver_email, "reject", expiry),
     )
 
@@ -100,7 +100,7 @@ def process_email_action():
         token = token[0]
 
     token_row = fetch_one(
-        "SELECT txn_code, approver_email, action, expiry_datetime, used FROM approval_tokens WHERE token = ?",
+        "SELECT txn_code, approver_email, action, expiry_datetime, used FROM approval_tokens WHERE token = %s",
         (token,),
     )
     if not token_row:
@@ -116,7 +116,10 @@ def process_email_action():
         st.error("This approval link has expired.")
         st.stop()
 
-    txn = fetch_one("SELECT status FROM transactions WHERE txn_code = ?", (txn_code,))
+    txn = fetch_one(
+        "SELECT status FROM transactions WHERE txn_code = %s",
+        (txn_code,),
+    )
     if not txn:
         st.error("Transaction not found.")
         st.stop()
@@ -128,11 +131,11 @@ def process_email_action():
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     execute(
-        "UPDATE transactions SET status=?, approval_comment=?, approval_datetime=? WHERE txn_code=?",
+        "UPDATE transactions SET status=%s, approval_comment=%s, approval_datetime=%s WHERE txn_code=%s",
         (new_status, "Action taken via email link", now_str, txn_code),
     )
     execute(
-        "UPDATE approval_tokens SET used=1, used_datetime=? WHERE token=?",
+        "UPDATE approval_tokens SET used=1::smallint, used_datetime=%s WHERE token=%s",
         (now_str, token),
     )
 
@@ -189,7 +192,7 @@ def submit_transaction_page(user):
                 submitter_amoeba, counterparty_amoeba, category, description,
                 amount, currency, approver_email, approver_name,
                 attachment_name, status, approval_comment, approval_datetime
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (txn_code, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
              user["email"], user["name"], user["amoeba"],
              counterparty_amoeba, category, description,
@@ -209,7 +212,7 @@ def my_transactions_page(user):
         """SELECT txn_code, submit_date, submitter_amoeba, counterparty_amoeba,
                   category, amount, currency, approver_name, status,
                   approval_comment, approval_datetime
-           FROM transactions WHERE submitter_email=? ORDER BY id DESC""",
+           FROM transactions WHERE submitter_email=%s ORDER BY id DESC""",
         (user["email"],),
     )
     if not rows:
@@ -229,7 +232,7 @@ def approval_queue_page(user):
         """SELECT id, txn_code, submit_date, submitter_name, submitter_amoeba,
                   counterparty_amoeba, category, amount, currency, description
            FROM transactions
-           WHERE approver_email=? AND status='Pending Approval'
+           WHERE approver_email=%s AND status='Pending Approval'
            ORDER BY id DESC""",
         (user["email"],),
     )
@@ -253,7 +256,7 @@ def approval_queue_page(user):
             with col_a:
                 if st.button("Approve " + txn_code, key="approve_" + str(txn_id)):
                     execute(
-                        "UPDATE transactions SET status=?, approval_comment=?, approval_datetime=? WHERE id=?",
+                        "UPDATE transactions SET status=%s, approval_comment=%s, approval_datetime=%s WHERE id=%s",
                         ("Approved", comment, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), txn_id),
                     )
                     st.success(txn_code + " approved.")
@@ -261,7 +264,7 @@ def approval_queue_page(user):
             with col_b:
                 if st.button("Reject " + txn_code, key="reject_" + str(txn_id)):
                     execute(
-                        "UPDATE transactions SET status=?, approval_comment=?, approval_datetime=? WHERE id=?",
+                        "UPDATE transactions SET status=%s, approval_comment=%s, approval_datetime=%s WHERE id=%s",
                         ("Rejected", comment, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), txn_id),
                     )
                     st.warning(txn_code + " rejected.")
