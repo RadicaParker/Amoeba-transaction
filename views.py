@@ -109,10 +109,18 @@ def process_email_action():
 
     txn_code, approver_email, action, expiry_datetime, used = token_row
 
-    if used == 1:
+    # ── safety fix 1: handle both int and bool from PostgreSQL ──
+    if used in (1, True):
         st.warning("This approval link has already been used.")
         st.stop()
-    if datetime.now() > datetime.strptime(expiry_datetime, "%Y-%m-%d %H:%M:%S"):
+
+    # ── safety fix 2: handle both str and datetime from PostgreSQL ──
+    if isinstance(expiry_datetime, str):
+        expiry_dt = datetime.strptime(expiry_datetime, "%Y-%m-%d %H:%M:%S")
+    else:
+        expiry_dt = expiry_datetime
+
+    if datetime.now() > expiry_dt:
         st.error("This approval link has expired.")
         st.stop()
 
