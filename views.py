@@ -172,7 +172,7 @@ def submit_transaction_page(user):
         with col1:
             counterparty_amoeba = st.selectbox("Counterparty Amoeba", amoeba_names)
             category = st.selectbox("Category", categories)
-            currency = st.selectbox("Currency", CURRENCIES)
+            currency = st.selectbox("HKD/Hour", CURRENCIES)
             amount = st.number_input("Amount", min_value=0.0, step=0.01)
         with col2:
             description = st.text_area("Description / Remarks")
