@@ -9,7 +9,7 @@ import streamlit as st
 
 from db import fetch_all, fetch_one, execute, next_txn_code
 
-CURRENCIES = ["HKD", "CNY", "USD"]
+CURRENCIES = ["HKD", "HOUR"]
 
 
 def get_secrets():
@@ -109,12 +109,10 @@ def process_email_action():
 
     txn_code, approver_email, action, expiry_datetime, used = token_row
 
-    # ── safety fix 1: handle both int and bool from PostgreSQL ──
     if used in (1, True):
         st.warning("This approval link has already been used.")
         st.stop()
 
-    # ── safety fix 2: handle both str and datetime from PostgreSQL ──
     if isinstance(expiry_datetime, str):
         expiry_dt = datetime.strptime(expiry_datetime, "%Y-%m-%d %H:%M:%S")
     else:
@@ -159,41 +157,48 @@ def process_email_action():
 def submit_transaction_page(user):
     st.subheader("Submit Transaction")
 
-    amoebas = [r[0] for r in fetch_all("SELECT name FROM amoebas ORDER BY name")]
+    amoebas = fetch_all("SELECT name, approver_email, approver_name FROM amoebas ORDER BY name")
+    amoeba_names = [r[0] for r in amoebas]
+    amoeba_approver_map = {r[0]: (r[1], r[2]) for r in amoebas}
+
     categories = [r[0] for r in fetch_all("SELECT name FROM categories ORDER BY name")]
-    approvers = fetch_all(
-        "SELECT email, name FROM users WHERE role IN ('approver','admin') AND active=1 ORDER BY name"
-    )
 
-    approver_map = {}
-    for email, name in approvers:
-        if email != user["email"]:
-            approver_map[name + " (" + email + ")"] = (email, name)
-
-    if not approver_map:
-        st.warning("No approvers available.")
+    if not amoeba_names:
+        st.warning("No amoebas available. Please ask admin to add amoebas.")
         return
 
     with st.form("txn_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
-            counterparty_amoeba = st.selectbox("Counterparty Amoeba / Department", amoebas)
+            counterparty_amoeba = st.selectbox("Counterparty Amoeba", amoeba_names)
             category = st.selectbox("Category", categories)
             currency = st.selectbox("Currency", CURRENCIES)
             amount = st.number_input("Amount", min_value=0.0, step=0.01)
         with col2:
-            approver_label = st.selectbox("Select Approver", list(approver_map.keys()))
             description = st.text_area("Description / Remarks")
             attachment = st.file_uploader("Attachment (optional)")
+
         submitted = st.form_submit_button("Submit Transaction")
 
     if submitted:
         if amount <= 0:
             st.error("Amount must be greater than zero.")
             return
-        approver_email, approver_name = approver_map[approver_label]
+
+        approver_email, approver_name = amoeba_approver_map.get(
+            counterparty_amoeba, ("", "")
+        )
+
+        if not approver_email:
+            st.error(
+                "No approver assigned to " + counterparty_amoeba +
+                ". Please ask admin to assign an approver to this Amoeba."
+            )
+            return
+
         attachment_name = attachment.name if attachment else ""
         txn_code = next_txn_code()
+
         execute(
             """INSERT INTO transactions (
                 txn_code, submit_date, submitter_email, submitter_name,
@@ -207,6 +212,7 @@ def submit_transaction_page(user):
              amount, currency, approver_email, approver_name,
              attachment_name, "Pending Approval", "", ""),
         )
+
         send_approval_email(
             txn_code, user["name"], user["amoeba"],
             counterparty_amoeba, category, amount, currency,
