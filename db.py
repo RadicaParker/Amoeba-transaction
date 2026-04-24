@@ -28,7 +28,9 @@ def init_db():
     cur.execute("""
         CREATE TABLE IF NOT EXISTS amoebas (
             id SERIAL PRIMARY KEY,
-            name TEXT UNIQUE
+            name TEXT UNIQUE,
+            approver_email TEXT DEFAULT '',
+            approver_name TEXT DEFAULT ''
         )
     """)
 
