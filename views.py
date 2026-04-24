@@ -157,7 +157,9 @@ def process_email_action():
 def submit_transaction_page(user):
     st.subheader("Submit Transaction")
 
-    amoebas = fetch_all("SELECT name, approver_email, approver_name FROM amoebas ORDER BY name")
+    amoebas = fetch_all(
+        "SELECT name, approver_email, approver_name FROM amoebas ORDER BY name"
+    )
     amoeba_names = [r[0] for r in amoebas]
     amoeba_approver_map = {r[0]: (r[1], r[2]) for r in amoebas}
 
@@ -234,7 +236,7 @@ def my_transactions_page(user):
         return
     df = pd.DataFrame(rows, columns=[
         "Transaction ID", "Submit Date", "From Amoeba", "To Amoeba",
-        "Category", "Amount", "Currency", "Approver", "Status",
+        "Category", "Amount", "HKD/Hour", "Approver", "Status",
         "Approval Comment", "Approval Datetime",
     ])
     st.dataframe(df, use_container_width=True)
@@ -256,7 +258,9 @@ def approval_queue_page(user):
     for r in rows:
         (txn_id, txn_code, submit_date, submitter_name, from_amoeba,
          to_amoeba, category, amount, currency, description) = r
-        with st.expander(txn_code + " | " + submitter_name + " | " + str(amount) + " " + currency):
+        with st.expander(
+            txn_code + " | " + submitter_name + " | " + str(amount) + " " + currency
+        ):
             col1, col2 = st.columns(2)
             with col1:
                 st.write("**Submit Date:** " + submit_date)
@@ -265,7 +269,9 @@ def approval_queue_page(user):
             with col2:
                 st.write("**Category:** " + category)
                 st.write("**Description:** " + description)
-            comment = st.text_input("Comment (optional)", key="comment_" + str(txn_id))
+            comment = st.text_input(
+                "Comment (optional)", key="comment_" + str(txn_id)
+            )
             col_a, col_b = st.columns(2)
             with col_a:
                 if st.button("Approve " + txn_code, key="approve_" + str(txn_id)):
