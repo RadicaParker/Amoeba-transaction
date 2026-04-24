@@ -103,8 +103,12 @@ def admin_portal_page():
     # ── AMOEBAS ────────────────────────────────
     with tab2:
         st.markdown("### Amoeba Management")
-        amoeba_rows = fetch_all("SELECT id, name FROM amoebas ORDER BY name")
-        amoeba_df = pd.DataFrame(amoeba_rows, columns=["ID", "Amoeba"])
+        amoeba_rows = fetch_all(
+            "SELECT id, name, approver_email, approver_name FROM amoebas ORDER BY name"
+        )
+        amoeba_df = pd.DataFrame(
+            amoeba_rows, columns=["ID", "Amoeba", "Approver Email", "Approver Name"]
+        )
         st.dataframe(amoeba_df, use_container_width=True)
 
         st.markdown("#### Add New Amoeba")
@@ -118,15 +122,15 @@ def admin_portal_page():
             else:
                 try:
                     execute(
-                        "INSERT INTO amoebas (name) VALUES (%s)",
-                        (new_amoeba_name,),
+                        "INSERT INTO amoebas (name, approver_email, approver_name) VALUES (%s, %s, %s)",
+                        (new_amoeba_name, "", ""),
                     )
                     st.success("Amoeba added.")
                     st.rerun()
                 except Exception:
                     st.error("Amoeba name already exists.")
 
-        st.markdown("#### Edit / Delete Existing Amoeba")
+        st.markdown("#### Edit / Delete / Assign Approver")
         amoeba_options = {
             str(a[0]) + " - " + a[1]: a[0] for a in amoeba_rows
         }
@@ -136,12 +140,36 @@ def admin_portal_page():
             )
             sel_amoeba_id = amoeba_options[sel_amoeba_label]
             sel_amoeba = fetch_one(
-                "SELECT id, name FROM amoebas WHERE id=%s",
+                "SELECT id, name, approver_email, approver_name FROM amoebas WHERE id=%s",
                 (sel_amoeba_id,),
             )
+
             if sel_amoeba:
+                # -- build approver dropdown from users with role approver or admin --
+                approver_users = fetch_all(
+                    "SELECT email, name FROM users WHERE role IN ('approver','admin') AND active=1 ORDER BY name"
+                )
+                approver_options = {"-- No Approver --": ("", "")}
+                for au_email, au_name in approver_users:
+                    approver_options[au_name + " (" + au_email + ")"] = (au_email, au_name)
+
+                current_approver_email = sel_amoeba[2] or ""
+                current_approver_key = "-- No Approver --"
+                for k, v in approver_options.items():
+                    if v[0] == current_approver_email:
+                        current_approver_key = k
+                        break
+
+                approver_keys = list(approver_options.keys())
+                current_index = approver_keys.index(current_approver_key)
+
                 with st.form("edit_amoeba_form"):
                     ed_amoeba_name = st.text_input("Amoeba Name", value=sel_amoeba[1])
+                    ed_approver_label = st.selectbox(
+                        "Assign Approver",
+                        approver_keys,
+                        index=current_index,
+                    )
                     col1, col2 = st.columns(2)
                     with col1:
                         save_amoeba_btn = st.form_submit_button("Save Changes")
@@ -149,11 +177,12 @@ def admin_portal_page():
                         delete_amoeba_btn = st.form_submit_button("Delete Amoeba")
 
                 if save_amoeba_btn:
+                    new_approver_email, new_approver_name = approver_options[ed_approver_label]
                     execute(
-                        "UPDATE amoebas SET name=%s WHERE id=%s",
-                        (ed_amoeba_name, sel_amoeba_id),
+                        "UPDATE amoebas SET name=%s, approver_email=%s, approver_name=%s WHERE id=%s",
+                        (ed_amoeba_name, new_approver_email, new_approver_name, sel_amoeba_id),
                     )
-                    st.success("Amoeba updated.")
+                    st.success("Amoeba updated with approver: " + (new_approver_name or "None"))
                     st.rerun()
 
                 if delete_amoeba_btn:
