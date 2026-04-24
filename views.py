@@ -24,7 +24,7 @@ def get_secrets():
 
 def send_approval_email(txn_code, submitter_name, submitter_amoeba,
                         counterparty_amoeba, category, amount, currency,
-                        description, approver_email, approver_name):
+                        description, approver_email, approver_name, job_date):
     sender, password, base_url = get_secrets()
     if not sender:
         st.warning("Email secrets not configured. Email not sent.")
@@ -58,6 +58,7 @@ def send_approval_email(txn_code, submitter_name, submitter_amoeba,
         "<tr><td><b>From Amoeba</b></td><td>" + submitter_amoeba + "</td></tr>"
         "<tr><td><b>To Amoeba</b></td><td>" + counterparty_amoeba + "</td></tr>"
         "<tr><td><b>Category</b></td><td>" + category + "</td></tr>"
+        "<tr><td><b>Job Date</b></td><td>" + job_date + "</td></tr>"
         "<tr><td><b>Amount</b></td><td>" + currency + " " + str(amount) + "</td></tr>"
         "<tr><td><b>Description</b></td><td>" + description + "</td></tr>"
         "</table><br>"
@@ -174,6 +175,7 @@ def submit_transaction_page(user):
         with col1:
             counterparty_amoeba = st.selectbox("Counterparty Amoeba", amoeba_names)
             category = st.selectbox("Category", categories)
+            job_date = st.date_input("Job Date", value=datetime.today())
             currency = st.selectbox("HKD/Hour", CURRENCIES)
             amount = st.number_input("Amount", min_value=0.0, step=0.01)
         with col2:
@@ -200,32 +202,35 @@ def submit_transaction_page(user):
 
         attachment_name = attachment.name if attachment else ""
         txn_code = next_txn_code()
+        job_date_str = job_date.strftime("%Y-%m-%d")
 
         execute(
             """INSERT INTO transactions (
                 txn_code, submit_date, submitter_email, submitter_name,
                 submitter_amoeba, counterparty_amoeba, category, description,
                 amount, currency, approver_email, approver_name,
-                attachment_name, status, approval_comment, approval_datetime
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                attachment_name, status, approval_comment, approval_datetime,
+                job_date
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (txn_code, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
              user["email"], user["name"], user["amoeba"],
              counterparty_amoeba, category, description,
              amount, currency, approver_email, approver_name,
-             attachment_name, "Pending Approval", "", ""),
+             attachment_name, "Pending Approval", "", "",
+             job_date_str),
         )
 
         send_approval_email(
             txn_code, user["name"], user["amoeba"],
             counterparty_amoeba, category, amount, currency,
-            description, approver_email, approver_name,
+            description, approver_email, approver_name, job_date_str,
         )
 
 
 def my_transactions_page(user):
     st.subheader("My Transactions")
     rows = fetch_all(
-        """SELECT txn_code, submit_date, submitter_amoeba, counterparty_amoeba,
+        """SELECT txn_code, submit_date, job_date, submitter_amoeba, counterparty_amoeba,
                   category, amount, currency, approver_name, status,
                   approval_comment, approval_datetime
            FROM transactions WHERE submitter_email=%s ORDER BY id DESC""",
@@ -235,7 +240,7 @@ def my_transactions_page(user):
         st.info("No transactions submitted yet.")
         return
     df = pd.DataFrame(rows, columns=[
-        "Transaction ID", "Submit Date", "From Amoeba", "To Amoeba",
+        "Transaction ID", "Submit Date", "Job Date", "From Amoeba", "To Amoeba",
         "Category", "Amount", "HKD/Hour", "Approver", "Status",
         "Approval Comment", "Approval Datetime",
     ])
@@ -245,7 +250,7 @@ def my_transactions_page(user):
 def approval_queue_page(user):
     st.subheader("Approval Queue")
     rows = fetch_all(
-        """SELECT id, txn_code, submit_date, submitter_name, submitter_amoeba,
+        """SELECT id, txn_code, submit_date, job_date, submitter_name, submitter_amoeba,
                   counterparty_amoeba, category, amount, currency, description
            FROM transactions
            WHERE approver_email=%s AND status='Pending Approval'
@@ -256,14 +261,15 @@ def approval_queue_page(user):
         st.info("No pending approvals.")
         return
     for r in rows:
-        (txn_id, txn_code, submit_date, submitter_name, from_amoeba,
+        (txn_id, txn_code, submit_date, job_date, submitter_name, from_amoeba,
          to_amoeba, category, amount, currency, description) = r
         with st.expander(
             txn_code + " | " + submitter_name + " | " + str(amount) + " " + currency
         ):
             col1, col2 = st.columns(2)
             with col1:
-                st.write("**Submit Date:** " + submit_date)
+                st.write("**Submit Date:** " + str(submit_date))
+                st.write("**Job Date:** " + str(job_date))
                 st.write("**From:** " + from_amoeba)
                 st.write("**To:** " + to_amoeba)
             with col2:
